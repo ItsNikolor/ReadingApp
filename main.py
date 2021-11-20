@@ -19,7 +19,7 @@ class ScrollFrame(QFrame):
 
         self.pause = True
         self.font_size = 15
-        self.font_family = 'Verdana'#Open Sans
+        self.font_family = 'Verdana'  # Open Sans
 
         self.highlight_line = 6
         self.highlight_style = 'background-color:black;' \
@@ -27,8 +27,9 @@ class ScrollFrame(QFrame):
         self.current_line = 0
 
         self.INITIAL_LINES = 40
-        self.labels = [ExpandLabel(words) for _ in range(self.INITIAL_LINES)]
-        self.positions = [(0, 0)] * len(self.labels)
+        # self.labels = [ExpandLabel(words) for _ in range(self.INITIAL_LINES)]
+        self.frames = [ExpandFrame(words) for _ in range(self.INITIAL_LINES)]
+        self.positions = [(0, 0)] * len(self.frames)
 
         self.setStyleSheet(f'font-size: {self.font_size}pt;'
                            f'font-family: {self.font_family};')
@@ -38,7 +39,7 @@ class ScrollFrame(QFrame):
 
     def fill(self):
         end = self.positions[self.current_line][0]
-        for i, l in enumerate(self.labels[:self.current_line][::-1]):
+        for i, l in enumerate(self.frames[:self.current_line][::-1]):
             begin, counter = l.fillReversed(end)
             self.positions[self.current_line - i - 1] = (begin - counter, end)
             if counter != 0:
@@ -47,7 +48,7 @@ class ScrollFrame(QFrame):
             end = begin
 
         begin = self.positions[self.current_line][0]
-        for i, l in enumerate(self.labels[self.current_line:]):
+        for i, l in enumerate(self.frames[self.current_line:]):
             end = l.fill(begin)
             self.positions[i + self.current_line] = (begin, end)
             begin = end
@@ -73,33 +74,34 @@ class ScrollFrame(QFrame):
 
         if self.current_line < self.highlight_line:
             self.current_line += 1
-            self.labels[self.current_line - 1].setStyleSheet('')
-            self.labels[self.current_line].setStyleSheet(self.highlight_style)
+            self.frames[self.current_line - 1].setStyleSheet('')
+            self.frames[self.current_line].setStyleSheet(self.highlight_style)
             self.updateProgressBar()
             return
 
         for i in range(len(self.positions) - 1):
-            self.labels[i].setText(self.labels[i + 1].text())
+            self.frames[i].render(self.frames[i+1].begin,self.frames[i+1].end)
             self.positions[i] = self.positions[i + 1]
 
-        self.positions[-1] = (self.positions[-1][1], self.labels[-1].fill(self.positions[-1][1]))
+        self.positions[-1] = (self.positions[-1][1], self.frames[-1].fill(self.positions[-1][1]))
         self.updateProgressBar()
 
     def moveUp(self):
-        if self.positions[min(self.highlight_line, self.current_line)][0] == 0:
+        if self.positions[self.current_line][0] == 0:
             return
 
         if self.positions[0][0] == 0:
             self.current_line -= 1
-            self.labels[self.current_line + 1].setStyleSheet('')
-            self.labels[self.current_line].setStyleSheet(self.highlight_style)
+            self.frames[self.current_line + 1].setStyleSheet('')
+            self.frames[self.current_line].setStyleSheet(self.highlight_style)
             self.updateProgressBar()
             return
         for i in range(len(self.positions) - 1, 0, -1):
-            self.labels[i].setText(self.labels[i - 1].text())
+            self.frames[i].render(self.frames[i-1].begin,self.frames[i-1].end)
+            # self.labels[i].setText(self.labels[i - 1].text())
             self.positions[i] = self.positions[i - 1]
 
-        begin, counter = self.labels[0].fillReversed(self.positions[0][0])
+        begin, counter = self.frames[0].fillReversed(self.positions[0][0])
         self.positions[0] = (begin - counter, self.positions[0][0])
         if counter != 0:
             for i in range(len(self.positions)):
@@ -131,11 +133,104 @@ class ScrollFrame(QFrame):
         timer.start(int((self.positions[self.current_line][1] - self.positions[self.current_line][0]) * ratio))
 
     def construct(self):
-        self.labels[0].setStyleSheet(self.highlight_style)
-        for label in self.labels:
-            label.setAlignment(Qt.AlignCenter)
-            self.layout().addWidget(label)
+        self.frames[0].setStyleSheet(self.highlight_style)
+        for frame in self.frames:
+            self.layout().addWidget(frame)
         self.layout().addStretch()
+
+
+class MyLabel(QLabel):
+    def resizeEvent(self, a0: QResizeEvent) -> None:
+        super(MyLabel, self).resizeEvent(a0)
+        print('resize label size ', self.size())
+        print('resize label rect ', self.fontMetrics().boundingRect(self.text()).size())
+
+
+class ExpandFrame(QFrame):
+    def __init__(self, words, *args):
+        super().__init__(*args)
+        self.words = words
+
+        self.hbox = QHBoxLayout(self)
+
+        self.space_label = QLabel(' ')
+        self.labels = [self.space_label]
+        self.hbox.addWidget(self.labels[0], 0)
+
+        # self.hbox.setContentsMargins(0, 0, 0, 0)
+        self.hbox.setSpacing(0)
+
+        self.width = None
+        self.begin = None
+        self.end = None
+
+    def get_width(self, text):
+        return self.space_label.fontMetrics().width(text)
+        return self.space_label.fontMetrics().boundingRect(text).size().width()
+
+    def render(self, begin, end):
+        if self.begin != begin or self.end != end:
+            self.begin = begin
+            self.end = end
+            for _ in range(len(self.labels) - 1):
+                self.hbox.removeWidget(self.labels[-1])
+                self.labels[-1].destroy()
+                self.labels.pop()
+
+            for i in range(begin, end):
+                self.labels.append(QLabel(self.words[i]+' '))
+                self.labels[-1].setAlignment(Qt.AlignCenter)
+                self.hbox.addWidget(self.labels[-1], 1)
+
+    def fill(self, begin):
+        if begin == len(self.words):
+            self.render(begin, begin)
+            return begin
+
+        cur = begin
+        self.space_label.adjustSize()
+
+        cur_width = self.get_width(' ') + self.get_width(self.words[begin] + ' ')
+        cur += 1
+
+        while cur_width <= self.width and cur < len(self.words):
+            cur_width += self.get_width(self.words[cur]+' ')
+            cur += 1
+
+        if cur_width > self.width:
+            cur -= 1
+
+        if cur == begin:
+            return None
+
+        self.render(begin, cur)
+        return cur
+
+    def fillReversed(self, end):
+        if end == 0:
+            print('Wtf why end = 0')
+            self.render(end,end)
+            return end, 0
+
+        cur = end-1
+        self.space_label.adjustSize()
+        space_width = self.get_width(' ')
+
+        cur_width = 2 * space_width + self.get_width(self.words[cur])
+        cur -= 1
+
+        while cur_width <= self.width and cur > 0:
+            cur_width += space_width + self.get_width(self.words[cur])
+            cur -= 1
+
+        if cur_width > self.width:
+            cur += 1
+
+        if cur + 1 == end:
+            return None
+
+        self.render(cur+1, end)
+        return cur + 1, 0
 
 
 class ExpandLabel(QLabel):
@@ -258,8 +353,8 @@ class MainFrame(QFrame):
             return
         self.cur_width = self.size().width()
 
-        for label in self.scroll_frame.labels:
-            label.width = self.cur_width - 2 * self.margin - 2
+        for frame in self.scroll_frame.frames:
+            frame.width = self.cur_width - 2 * self.margin - 2
         self.scroll_frame.fill()
 
 
@@ -280,7 +375,7 @@ class MainUI(QWidget):
 
         # words[20] = 'Очень-Очень-ОченьДлинноеСлово'
 
-        self.main_frame = MainFrame(words[400:5000], self.progress_label)
+        self.main_frame = MainFrame(words[:500], self.progress_label)
         self.font_label.setText(f'Шрифт = {self.main_frame.scroll_frame.font_size}')
         self.main_frame.scroll_frame.speed = speed
         vbox.addWidget(self.info_frame)
