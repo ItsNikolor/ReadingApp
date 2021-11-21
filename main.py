@@ -176,8 +176,10 @@ class ExpandFrame(QFrame):
 
         self.space_label = QLabel(' ')
         self.labels = [self.space_label]
+        self.labels[-1].setStyleSheet('background-color:green')
         self.hbox.addWidget(self.labels[0], 0)
 
+        self.hbox.setContentsMargins(0, 10, 0, 10)
         self.hbox.setSpacing(0)
 
         self.begin = 0  # 33065
@@ -196,6 +198,8 @@ class ExpandFrame(QFrame):
         return False
 
     def get_width(self, text):
+        # return max(self.space_label.fontMetrics().width(text),
+        #            self.space_label.fontMetrics().boundingRect(text).width())
         return self.space_label.fontMetrics().width(text)
 
     def populate(self, begin, end, force_render=False):
@@ -213,6 +217,7 @@ class ExpandFrame(QFrame):
                 self.hbox.addWidget(self.labels[-1], 1)
 
             self.labels.append(QLabel(' '))
+            self.labels[-1].setStyleSheet('background-color:green')
             self.hbox.addWidget(self.labels[-1], 0)
 
             if self.highlight_position > 0:
@@ -227,7 +232,7 @@ class ExpandFrame(QFrame):
         cur = begin
         # self.space_label.adjustSize()
 
-        cur_width = 3 * self.get_width(' ') + self.get_width(self.words[begin] + ' ')
+        cur_width = 2 * self.get_width(' ') + self.get_width(self.words[begin] + ' ')
         cur += 1
 
         while cur_width <= self.width and cur < len(self.words):
@@ -238,30 +243,33 @@ class ExpandFrame(QFrame):
             cur -= 1
 
         if cur == begin:
-            word = self.words[begin]
+            cur += 1
+            force_render = False
 
-            # size = word.index('-') if '-' in word else len(word) // 2
-            # if word[size] == '-':
-            #     word = word[:size] + word[size + 1:]
-
-            size = len(word) // 2
-
-            self.words[begin] = word[:size] + '-'
-            self.words.insert(begin + 1, word[size:])
-            return self.fill(begin)
+            # word = self.words[begin]
+            #
+            # # size = word.index('-') if '-' in word else len(word) // 2
+            # # if word[size] == '-':
+            # #     word = word[:size] + word[size + 1:]
+            #
+            # size = len(word) // 2
+            #
+            # self.words[begin] = word[:size] + '-'
+            # self.words.insert(begin + 1, word[size:])
+            # return self.fill(begin)
         else:
             force_render = False
-            i = begin
-
-            while i != cur - 1:
-                if self.words[i][-1] == '-':
-                    self.words[i] = self.words[i][:-1] + self.words[i + 1]
-                    cur -= 1
-                    del self.words[i + 1]
-                    force_render = True
-                    continue
-                else:
-                    i += 1
+            # i = begin
+            #
+            # while i != cur - 1:
+            #     if self.words[i][-1] == '-':
+            #         self.words[i] = self.words[i][:-1] + self.words[i + 1]
+            #         cur -= 1
+            #         del self.words[i + 1]
+            #         force_render = True
+            #         continue
+            #     else:
+            #         i += 1
 
         self.populate(begin, cur, force_render)
         return cur
@@ -273,9 +281,9 @@ class ExpandFrame(QFrame):
             return end, 0
 
         cur = end - 1
-        self.space_label.adjustSize()
+        # self.space_label.adjustSize()
 
-        cur_width = self.get_width(' ') + self.get_width(self.words[cur] + ' ')
+        cur_width = 2 * self.get_width(' ') + self.get_width(self.words[cur] + ' ')
         cur -= 1
 
         while cur_width <= self.width and cur >= 0:
@@ -286,35 +294,39 @@ class ExpandFrame(QFrame):
             cur += 1
 
         if cur + 1 == end:
-            word = self.words[end - 1]
+            cur = end - 2
+            counter = 0
+            force_render = False
 
-            # size = word.index('-') if '-' in word else len(word) // 2
+            # word = self.words[end - 1]
             #
-            # if word[size] == '-':
-            #     word = word[:size] + word[size + 1:]
-
-            size = len(word) // 2
-
-            self.words[end - 1] = word[:size] + '-'
-            self.words.insert(end, word[size:])
-
-            ans, counter = self.fillReversed(end + 1)
-            return ans, counter + 1
+            # # size = word.index('-') if '-' in word else len(word) // 2
+            # #
+            # # if word[size] == '-':
+            # #     word = word[:size] + word[size + 1:]
+            #
+            # size = len(word) // 2
+            #
+            # self.words[end - 1] = word[:size] + '-'
+            # self.words.insert(end, word[size:])
+            #
+            # ans, counter = self.fillReversed(end + 1)
+            # return ans, counter + 1
         else:
             counter = 0
             force_render = False
-            i = cur + 1
-
-            while i != end - 1:
-                if self.words[i][-1] == '-':
-                    self.words[i] = self.words[i][:-1] + self.words[i + 1]
-                    end -= 1
-                    del self.words[i + 1]
-                    counter -= 1
-                    force_render = True
-                    continue
-                else:
-                    i += 1
+            # i = cur + 1
+            #
+            # while i != end - 1:
+            #     if self.words[i][-1] == '-':
+            #         self.words[i] = self.words[i][:-1] + self.words[i + 1]
+            #         end -= 1
+            #         del self.words[i + 1]
+            #         counter -= 1
+            #         force_render = True
+            #         continue
+            #     else:
+            #         i += 1
 
         self.populate(cur + 1, end, force_render)
         return cur + 1, counter
