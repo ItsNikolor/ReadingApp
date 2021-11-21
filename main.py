@@ -2,25 +2,21 @@ import re
 import sys
 
 from PyQt5 import QtGui
-from PyQt5.QtCore import Qt, QEvent, QTimer, QSettings
+from PyQt5.QtCore import Qt, QEvent, QTimer
 from PyQt5.QtGui import QResizeEvent
 from PyQt5.QtWidgets import QApplication, QLabel, QFrame, QVBoxLayout, QWidget, \
     QScrollArea, QHBoxLayout
 
-from dark_fusion import dark_fusion
 import save
+from dark_fusion import dark_fusion
 
 
 class ScrollFrame(QFrame):
-    def __init__(self, settings, words, progress_label, *args):
+    def __init__(self, words, progress_label, *args):
         super().__init__(*args)
 
-        if settings.contains('saved'):
-            self.font_size = settings.value('font size')
-            self.current_line = settings.value('current line')
-        else:
-            self.font_size = 15
-            self.current_line = 0
+        self.font_size = 15
+        self.current_line = 0
 
         self.scroll = None
         self.speed = None
@@ -35,12 +31,11 @@ class ScrollFrame(QFrame):
         self.highlight_line_style = 'background-color:black;'
 
         self.INITIAL_LINES = 20
-        self.frames = [ExpandFrame(settings, frame_id, words) for frame_id in range(self.INITIAL_LINES)]
+        self.frames = [ExpandFrame(words) for _ in range(self.INITIAL_LINES)]
         self.updateProgressBar()
 
         self.setStyleSheet(f'font-size: {self.font_size}pt;'
                            f'font-family: {self.font_family};')
-        # self.jump(33065)
 
     def setScroll(self, scroll):
         self.scroll = scroll
@@ -61,10 +56,11 @@ class ScrollFrame(QFrame):
             end = frame.fill(begin)
             begin = end
 
-    def jump(self, position):
+    def jump(self, position, highlight_position=1):
         self.frames[self.current_line].begin = position
-        # self.adjustSize()
-        # self.fill()
+        self.frames[self.current_line].highlight_position = highlight_position
+        self.fill()
+        self.updateProgressBar()
 
     def increaseFontSize(self):
         self.font_size = min(40, self.font_size + 5)
@@ -172,7 +168,7 @@ class ScrollFrame(QFrame):
 class ExpandFrame(QFrame):
     highlight_word_style = 'color: red'
 
-    def __init__(self, settings, frame_id, words, *args):
+    def __init__(self, words, *args):
         super().__init__(*args)
         self.words = words
 
@@ -184,18 +180,10 @@ class ExpandFrame(QFrame):
 
         self.hbox.setSpacing(0)
 
-        self.begin = 0#33065
+        self.begin = 0  # 33065
         self.end = 0
-
-        if settings.contains('saved'):
-            self.width = settings.value('width')
-            begin = settings.value(f'frame {frame_id} begin')
-            end = settings.value(f'frame {frame_id} end')
-            self.highlight_position = settings.value(f'frame {frame_id} position')
-            self.populate(begin, end)
-        else:
-            self.width = None
-            self.highlight_position = 0
+        self.width = None
+        self.highlight_position = 0
 
     def step(self):
         if self.begin == len(self.words):
@@ -338,7 +326,7 @@ class MainFrame(QFrame):
             if ev.type() == QEvent.Wheel:
                 ev.ignore()
 
-    def __init__(self, settings, words, progress_bar):
+    def __init__(self, words, progress_bar):
         super(MainFrame, self).__init__()
 
         self.progress_bar = progress_bar
@@ -348,7 +336,7 @@ class MainFrame(QFrame):
         self.vbox.setContentsMargins(0, 0, 0, 0)
         self.vbox.setSpacing(0)
 
-        self.scroll_frame = ScrollFrame(settings, words, self.progress_bar, self)
+        self.scroll_frame = ScrollFrame(words, self.progress_bar, self)
         self.scroll_frame.setLayout(self.vbox)
 
         self.scroll = MainFrame.MyScroller(self)
@@ -389,24 +377,17 @@ class MainUI(QWidget):
         words = [word for line in lines for word in line.split()]
 
         for i in range(len(words)):
-            if words[i]=='ДРАКА-ДРАКА':#33065
+            if words[i] == 'ДРАКА-ДРАКА':  # 33065
                 print(i)
 
-        settings = QSettings('ReadingAppQt', f'{filename}_{self.version}')
-        if settings.contains('saved'):
-            print('Loaded')
-            speed = settings.value('speed')
-            self.resize(settings.value('window size'))
-            self.move(settings.value('window position'))
-        else:
-            self.setGeometry(screen_width // 3, titlebar_height, screen_width // 3, screen_height - titlebar_height)
-            speed = 200
+        self.setGeometry(screen_width // 3, titlebar_height, screen_width // 3, screen_height - titlebar_height)
+        speed = 200
 
         vbox = QVBoxLayout(self)
         self.info_frame = QFrame()
         self.initialize_info(speed)
 
-        self.main_frame = MainFrame(settings, words, self.progress_label)
+        self.main_frame = MainFrame(words, self.progress_label)
         self.font_label.setText(f'Шрифт = {self.main_frame.scroll_frame.font_size}')
         self.main_frame.scroll_frame.speed = speed
         vbox.addWidget(self.info_frame)
@@ -470,9 +451,13 @@ def initialize():
     screen_height, screen_width = screen.availableGeometry().height(), screen.availableGeometry().width()
     titlebar_height = 40
 
-    # save.delete_save('text.txt',0)
-    ex = MainUI('text.txt', screen_width, screen_height, titlebar_height)
+    filename = 'text.txt'
+    # save.delete_save(filename, 0)
+    ex = MainUI(filename, screen_width, screen_height, titlebar_height)
     ex.show()
+    # ex.main_frame.scroll_frame.jump(33065)
+
+    save.load(ex)
 
     sys.exit(app.exec_())
 
