@@ -31,7 +31,7 @@ class ScrollFrame(QFrame):
         self.pause = True
         self.font_family = 'Verdana'  # Open Sans
 
-        self.highlight_line = 6
+        self.highlight_line = 5
         self.highlight_line_style = 'background-color:black;'
 
         self.INITIAL_LINES = 20
@@ -40,6 +40,7 @@ class ScrollFrame(QFrame):
 
         self.setStyleSheet(f'font-size: {self.font_size}pt;'
                            f'font-family: {self.font_family};')
+        # self.jump(33065)
 
     def setScroll(self, scroll):
         self.scroll = scroll
@@ -59,6 +60,11 @@ class ScrollFrame(QFrame):
         for i, frame in enumerate(self.frames[self.current_line:]):
             end = frame.fill(begin)
             begin = end
+
+    def jump(self, position):
+        self.frames[self.current_line].begin = position
+        # self.adjustSize()
+        # self.fill()
 
     def increaseFontSize(self):
         self.font_size = min(40, self.font_size + 5)
@@ -178,7 +184,7 @@ class ExpandFrame(QFrame):
 
         self.hbox.setSpacing(0)
 
-        self.begin = 0
+        self.begin = 0#33065
         self.end = 0
 
         if settings.contains('saved'):
@@ -381,6 +387,10 @@ class MainUI(QWidget):
         with open(filename, 'r', encoding='utf-8') as f:
             lines = [re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', line) for line in f]
         words = [word for line in lines for word in line.split()]
+
+        for i in range(len(words)):
+            if words[i]=='ДРАКА-ДРАКА':#33065
+                print(i)
 
         settings = QSettings('ReadingAppQt', f'{filename}_{self.version}')
         if settings.contains('saved'):
