@@ -87,7 +87,7 @@ class ScrollFrame(QFrame):
 
         self.frames[self.current_line].highlight_position = 1
         for i in range(len(self.frames) - 1):
-            self.frames[i].render(self.frames[i + 1].begin, self.frames[i + 1].end)
+            self.frames[i].populate(self.frames[i + 1].begin, self.frames[i + 1].end)
 
         self.frames[-1].fill(self.frames[-1].end)
         self.updateProgressBar()
@@ -111,7 +111,7 @@ class ScrollFrame(QFrame):
 
         self.frames[self.current_line].highlight_position = 1
         for i in range(len(self.frames) - 1, 0, -1):
-            self.frames[i].render(self.frames[i - 1].begin, self.frames[i - 1].end)
+            self.frames[i].populate(self.frames[i - 1].begin, self.frames[i - 1].end)
 
         begin, counter = self.frames[0].fillReversed(self.frames[0].begin)
         if counter != 0:
@@ -133,18 +133,18 @@ class ScrollFrame(QFrame):
         timer = QTimer(self)
         timer.setSingleShot(True)
 
-        def run(self, counter):
-            if counter != self.pause_counter or self.pause:
+        def run(captured_self, captured_counter):
+            if captured_counter != captured_self.pause_counter or captured_self.pause:
                 return
 
-            if self.frames[self.current_line].step():
-                self.moveDown()
-            self.firstRun(counter)
+            if captured_self.frames[captured_self.current_line].step():
+                captured_self.moveDown()
+            captured_self.firstRun(captured_counter)
 
         timer.timeout.connect(lambda: run(self, counter))
 
         ratio = 60 * 1000 / self.speed
-        timer.start(int(ratio)+1)
+        timer.start(int(ratio) + 1)
 
     def construct(self):
         self.frames[0].setStyleSheet(self.highlight_line_style)
@@ -155,6 +155,7 @@ class ScrollFrame(QFrame):
 
 class ExpandFrame(QFrame):
     highlight_word_style = 'color: red'
+
     def __init__(self, words, *args):
         super().__init__(*args)
         self.words = words
@@ -185,8 +186,7 @@ class ExpandFrame(QFrame):
     def get_width(self, text):
         return self.space_label.fontMetrics().width(text)
 
-
-    def render(self, begin, end, force_render=False):
+    def populate(self, begin, end, force_render=False):
         if self.begin != begin or self.end != end or force_render:
             self.begin = begin
             self.end = end
@@ -203,13 +203,13 @@ class ExpandFrame(QFrame):
             self.labels.append(QLabel(' '))
             self.hbox.addWidget(self.labels[-1], 0)
 
-            if self.highlight_position>0:
-                self.highlight_position = min(len(self.labels)-2,self.highlight_position)
+            if self.highlight_position > 0:
+                self.highlight_position = min(len(self.labels) - 2, self.highlight_position)
                 self.labels[self.highlight_position].setStyleSheet(self.highlight_word_style)
 
     def fill(self, begin):
         if begin == len(self.words):
-            self.render(begin, begin)
+            self.populate(begin, begin)
             return begin
 
         cur = begin
@@ -251,13 +251,13 @@ class ExpandFrame(QFrame):
                 else:
                     i += 1
 
-        self.render(begin, cur, force_render)
+        self.populate(begin, cur, force_render)
         return cur
 
     def fillReversed(self, end):
         if end == 0:
             print('Wtf why end = 0')
-            self.render(end, end)
+            self.populate(end, end)
             return end, 0
 
         cur = end - 1
@@ -304,7 +304,7 @@ class ExpandFrame(QFrame):
                 else:
                     i += 1
 
-        self.render(cur + 1, end, force_render)
+        self.populate(cur + 1, end, force_render)
         return cur + 1, counter
 
 
