@@ -1,15 +1,26 @@
 import re
 import sys
 
-from PyQt5.QtCore import Qt, QEvent, QTimer
-from PyQt5.QtGui import QPalette, QColor, QResizeEvent
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt, QEvent, QTimer, QSettings
+from PyQt5.QtGui import QResizeEvent
 from PyQt5.QtWidgets import QApplication, QLabel, QFrame, QVBoxLayout, QWidget, \
     QScrollArea, QHBoxLayout
 
+from dark_fusion import dark_fusion
+import save
+
 
 class ScrollFrame(QFrame):
-    def __init__(self, words, progress_label, *args):
+    def __init__(self, settings, words, progress_label, *args):
         super().__init__(*args)
+
+        if settings.contains('saved'):
+            self.font_size = settings.value('font size')
+            self.current_line = settings.value('current line')
+        else:
+            self.font_size = 15
+            self.current_line = 0
 
         self.scroll = None
         self.speed = None
@@ -18,15 +29,14 @@ class ScrollFrame(QFrame):
         self.progress_label = progress_label
 
         self.pause = True
-        self.font_size = 15
         self.font_family = 'Verdana'  # Open Sans
 
         self.highlight_line = 6
         self.highlight_line_style = 'background-color:black;'
-        self.current_line = 0
 
         self.INITIAL_LINES = 20
-        self.frames = [ExpandFrame(words) for _ in range(self.INITIAL_LINES)]
+        self.frames = [ExpandFrame(settings, frame_id, words) for frame_id in range(self.INITIAL_LINES)]
+        self.updateProgressBar()
 
         self.setStyleSheet(f'font-size: {self.font_size}pt;'
                            f'font-family: {self.font_family};')
@@ -147,7 +157,7 @@ class ScrollFrame(QFrame):
         timer.start(int(ratio) + 1)
 
     def construct(self):
-        self.frames[0].setStyleSheet(self.highlight_line_style)
+        self.frames[self.current_line].setStyleSheet(self.highlight_line_style)
         for frame in self.frames:
             self.layout().addWidget(frame)
         self.layout().addStretch()
@@ -156,7 +166,7 @@ class ScrollFrame(QFrame):
 class ExpandFrame(QFrame):
     highlight_word_style = 'color: red'
 
-    def __init__(self, words, *args):
+    def __init__(self, settings, frame_id, words, *args):
         super().__init__(*args)
         self.words = words
 
@@ -168,10 +178,18 @@ class ExpandFrame(QFrame):
 
         self.hbox.setSpacing(0)
 
-        self.width = None
         self.begin = 0
         self.end = 0
-        self.highlight_position = 0
+
+        if settings.contains('saved'):
+            self.width = settings.value('width')
+            begin = settings.value(f'frame {frame_id} begin')
+            end = settings.value(f'frame {frame_id} end')
+            self.highlight_position = settings.value(f'frame {frame_id} position')
+            self.populate(begin, end)
+        else:
+            self.width = None
+            self.highlight_position = 0
 
     def step(self):
         if self.begin == len(self.words):
@@ -314,7 +332,7 @@ class MainFrame(QFrame):
             if ev.type() == QEvent.Wheel:
                 ev.ignore()
 
-    def __init__(self, words, progress_bar):
+    def __init__(self, settings, words, progress_bar):
         super(MainFrame, self).__init__()
 
         self.progress_bar = progress_bar
@@ -324,7 +342,7 @@ class MainFrame(QFrame):
         self.vbox.setContentsMargins(0, 0, 0, 0)
         self.vbox.setSpacing(0)
 
-        self.scroll_frame = ScrollFrame(words, self.progress_bar, self)
+        self.scroll_frame = ScrollFrame(settings, words, self.progress_bar, self)
         self.scroll_frame.setLayout(self.vbox)
 
         self.scroll = MainFrame.MyScroller(self)
@@ -354,33 +372,38 @@ class MainFrame(QFrame):
 
 
 class MainUI(QWidget):
-    def __init__(self, screen_width, screen_height, titlebar_height):
+    version = 0
+
+    def __init__(self, filename, screen_width, screen_height, titlebar_height):
         super().__init__()
 
-        self.setGeometry(screen_width // 3, titlebar_height, screen_width // 3, screen_height - titlebar_height)
+        self.filename = filename
+        with open(filename, 'r', encoding='utf-8') as f:
+            lines = [re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', line) for line in f]
+        words = [word for line in lines for word in line.split()]
 
-        speed = 200
+        settings = QSettings('ReadingAppQt', f'{filename}_{self.version}')
+        if settings.contains('saved'):
+            print('Loaded')
+            speed = settings.value('speed')
+            self.resize(settings.value('window size'))
+            self.move(settings.value('window position'))
+        else:
+            self.setGeometry(screen_width // 3, titlebar_height, screen_width // 3, screen_height - titlebar_height)
+            speed = 200
+
         vbox = QVBoxLayout(self)
         self.info_frame = QFrame()
         self.initialize_info(speed)
 
-        with open('text.txt', 'r', encoding='utf-8') as f:
-            lines = [re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', line) for line in f]
-        words = [word for line in lines for word in line.split()]
-
-        # words[20] = 'ОченьОченьОченьДлинноеСлово'
-        # words[80] = 'Очень-Очень-ОченьДлинноеСлово'
-        #
-        # words[100] = 'Очень-Очень-ОченьДлинное-Слово'
-
-        self.main_frame = MainFrame(words, self.progress_label)
+        self.main_frame = MainFrame(settings, words, self.progress_label)
         self.font_label.setText(f'Шрифт = {self.main_frame.scroll_frame.font_size}')
         self.main_frame.scroll_frame.speed = speed
         vbox.addWidget(self.info_frame)
         vbox.addWidget(self.main_frame)
 
         self.setChildrenFocusPolicy(Qt.NoFocus)
-        self.show()
+        # self.show()
 
     def initialize_info(self, SPEED):
         hbox = QHBoxLayout(self.info_frame)
@@ -392,11 +415,11 @@ class MainUI(QWidget):
         for label in [self.speed_label, self.progress_label, self.font_label]:
             label.setAlignment(Qt.AlignCenter)
             hbox.addWidget(label)
-        self.info_frame.setStyleSheet('font-family: Open Sans')
+        self.info_frame.setStyleSheet('font-family: Arial')
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            self.deleteLater()
+            self.close()
         elif event.key() in [Qt.Key_Enter, Qt.Key_Space, Qt.Key_Return]:
             self.main_frame.scroll_frame.start()
         elif event.key() == Qt.Key_Equal:
@@ -425,47 +448,23 @@ class MainUI(QWidget):
 
         recursiveSetChildFocusPolicy(self)
 
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        save.save(self)
+
 
 def initialize():
     app = QApplication([])
     dark_fusion(app)
 
-    # font_db = QFontDatabase()
-    # font_id = font_db.addApplicationFont("OpenSans-Regular.ttf")
-    # families = font_db.applicationFontFamilies(font_id)
-    # QFontDatabase.addApplicationFont('OpenSans-Regular.ttf')
-
     screen = app.primaryScreen()
     screen_height, screen_width = screen.availableGeometry().height(), screen.availableGeometry().width()
     titlebar_height = 40
 
-    ex = MainUI(screen_width, screen_height, titlebar_height)
+    # save.delete_save('text.txt',0)
+    ex = MainUI('text.txt', screen_width, screen_height, titlebar_height)
+    ex.show()
 
     sys.exit(app.exec_())
-
-
-def dark_fusion(qApp):
-    qApp.setStyle("Fusion")
-
-    dark_palette = QPalette()
-
-    dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
-    dark_palette.setColor(QPalette.WindowText, Qt.white)
-    dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
-    dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-    dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
-    dark_palette.setColor(QPalette.ToolTipText, Qt.white)
-    dark_palette.setColor(QPalette.Text, Qt.white)
-    dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
-    dark_palette.setColor(QPalette.ButtonText, Qt.white)
-    dark_palette.setColor(QPalette.BrightText, Qt.red)
-    dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
-    dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-    dark_palette.setColor(QPalette.HighlightedText, Qt.black)
-
-    qApp.setPalette(dark_palette)
-
-    qApp.setStyleSheet("QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }")
 
 
 # Press the green button in the gutter to run the script.
