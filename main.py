@@ -176,13 +176,13 @@ class ExpandFrame(QFrame):
 
         self.space_label = QLabel(' ')
         self.labels = [self.space_label]
-        self.labels[-1].setStyleSheet('background-color:green')
+        # self.labels[-1].setStyleSheet('background-color:green')
         self.hbox.addWidget(self.labels[0], 0)
 
         self.hbox.setContentsMargins(0, 10, 0, 10)
         self.hbox.setSpacing(0)
 
-        self.begin = 0  # 33065
+        self.begin = 0
         self.end = 0
         self.width = None
         self.highlight_position = 0
@@ -217,7 +217,7 @@ class ExpandFrame(QFrame):
                 self.hbox.addWidget(self.labels[-1], 1)
 
             self.labels.append(QLabel(' '))
-            self.labels[-1].setStyleSheet('background-color:green')
+            # self.labels[-1].setStyleSheet('background-color:green')
             self.hbox.addWidget(self.labels[-1], 0)
 
             if self.highlight_position > 0:
@@ -388,10 +388,6 @@ class MainUI(QWidget):
             lines = [re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', line) for line in f]
         words = [word for line in lines for word in line.split()]
 
-        for i in range(len(words)):
-            if words[i] == 'ДРАКА-ДРАКА':  # 33065
-                print(i)
-
         self.setGeometry(screen_width // 3, titlebar_height, screen_width // 3, screen_height - titlebar_height)
         speed = 200
 
@@ -467,9 +463,10 @@ def initialize():
     # save.delete_save(filename, 0)
     ex = MainUI(filename, screen_width, screen_height, titlebar_height)
     ex.show()
-    # ex.main_frame.scroll_frame.jump(33065)
 
     save.load(ex)
+    # ex.main_frame.scroll_frame.jump(33065)
+
 
     sys.exit(app.exec_())
 
