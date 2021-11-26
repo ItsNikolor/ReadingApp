@@ -1,12 +1,13 @@
-import re
+import os
 import sys
 
 from PyQt5 import QtGui
 from PyQt5.QtCore import Qt, QEvent, QTimer
 from PyQt5.QtGui import QResizeEvent
 from PyQt5.QtWidgets import QApplication, QLabel, QFrame, QVBoxLayout, QWidget, \
-    QScrollArea, QHBoxLayout
+    QScrollArea, QHBoxLayout, QMainWindow, QAction, QFileDialog
 
+import read
 import save
 from dark_fusion import dark_fusion
 
@@ -76,10 +77,10 @@ class ScrollFrame(QFrame):
 
     def updateProgressBar(self):
         self.progress_label.setText(
-            f"Прогресс = {self.frames[self.current_line].begin / len(self.words) * 100:.2f}%")
+            f"Прогресс = {self.frames[self.current_line].begin / max(len(self.words), 1) * 100:.2f}%")
 
     def moveDown(self):
-        if self.frames[self.current_line].begin == len(self.words):
+        if self.frames[self.current_line].begin == len(self.words) or not self.words:
             self.pause = True
             return
 
@@ -156,10 +157,14 @@ class ScrollFrame(QFrame):
         timer.timeout.connect(lambda: run(self, counter))
 
         ratio = 60 * 1000 / self.speed
-        timer.start(int(ratio) + 1)
+        if self.frames[self.current_line].highlight_position != 1:
+            timer.start(int(ratio) + 1)
+        else:
+            timer.start(int(ratio * 1.5))
 
     def construct(self):
-        self.frames[self.current_line].setStyleSheet(self.highlight_line_style)
+        if self.words:
+            self.frames[self.current_line].setStyleSheet(self.highlight_line_style)
         for frame in self.frames:
             self.layout().addWidget(frame)
         self.layout().addStretch()
@@ -377,32 +382,81 @@ class MainFrame(QFrame):
         self.scroll_frame.fill()
 
 
-class MainUI(QWidget):
+class MainUI(QMainWindow):
     version = 0
 
-    def __init__(self, filename, screen_width, screen_height, titlebar_height):
+    def __init__(self, screen_width, screen_height, titlebar_height):
         super().__init__()
 
-        self.filename = filename
-        with open(filename, 'r', encoding='utf-8') as f:
-            lines = [re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', line) for line in f]
-        words = [word for line in lines for word in line.split()]
+        self.filename = ''
+        self.last_directory = 'c:\\'
+        # self.last_directory = 'C:/Users/o.verbin/PycharmProjects/ReadingApp'
+        self._createMenuBar()
+
+        frame = QFrame()
+        self.setCentralWidget(frame)
 
         self.setGeometry(screen_width // 3, titlebar_height, screen_width // 3, screen_height - titlebar_height)
         speed = 200
+        words = []
+        # words = read.read('text.txt')
 
-        vbox = QVBoxLayout(self)
+        self.vbox = QVBoxLayout(frame)
         self.info_frame = QFrame()
         self.initialize_info(speed)
 
         self.main_frame = MainFrame(words, self.progress_label)
         self.font_label.setText(f'Шрифт = {self.main_frame.scroll_frame.font_size}')
         self.main_frame.scroll_frame.speed = speed
-        vbox.addWidget(self.info_frame)
-        vbox.addWidget(self.main_frame)
+        self.vbox.addWidget(self.info_frame)
+        self.vbox.addWidget(self.main_frame)
 
         self.setChildrenFocusPolicy(Qt.NoFocus)
-        # self.show()
+        self.show()
+
+    def populate(self, words):
+        speed = self.main_frame.scroll_frame.speed
+        font_size = self.main_frame.scroll_frame.font_size
+
+        self.vbox.removeWidget(self.main_frame)
+        self.main_frame.deleteLater()
+
+        self.main_frame = MainFrame(words, self.progress_label)
+        scroll_frame = self.main_frame.scroll_frame
+        scroll_frame.speed = speed
+
+        scroll_frame.font_size = font_size
+        scroll_frame.setStyleSheet(f'font-size: {scroll_frame.font_size}pt;'
+                                   f'font-family: {scroll_frame.font_family};')
+        # scroll_frame.fill()
+
+        self.vbox.addWidget(self.main_frame)
+
+        self.setChildrenFocusPolicy(Qt.NoFocus)
+
+    def _createMenuBar(self):
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu("&Open")
+
+        open_action = QAction("&Open...", self)
+        open_action.triggered.connect(self._open)
+        file_menu.addAction(open_action)
+        file_menu.addSeparator()
+
+    def _open(self):
+        fname = QFileDialog.getOpenFileName(self, 'Open file',
+                                            self.last_directory, "Text files (*.pdf *.txt)")
+        if fname[0]:
+            self.last_directory = os.path.dirname(fname[0])
+            print(self.last_directory)
+            try:
+                words = read.read(fname[0])
+                save.save(self)
+                self.filename = fname[0]
+                self.populate(words)
+                save.load_scroll_frame(self)
+            except:
+                pass
 
     def initialize_info(self, SPEED):
         hbox = QHBoxLayout(self.info_frame)
@@ -417,7 +471,7 @@ class MainUI(QWidget):
         self.info_frame.setStyleSheet('font-family: Arial')
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
+        if event.key() == Qt.Key_Escape or event.key() == Qt.Key_Q:
             self.close()
         elif event.key() in [Qt.Key_Enter, Qt.Key_Space, Qt.Key_Return]:
             self.main_frame.scroll_frame.start()
@@ -459,14 +513,12 @@ def initialize():
     screen_height, screen_width = screen.availableGeometry().height(), screen.availableGeometry().width()
     titlebar_height = 40
 
-    filename = 'text.txt'
+    # save.delete_save(0)
     # save.delete_save(filename, 0)
-    ex = MainUI(filename, screen_width, screen_height, titlebar_height)
-    ex.show()
+    ex = MainUI(screen_width, screen_height, titlebar_height)
 
     save.load(ex)
     # ex.main_frame.scroll_frame.jump(33065)
-
 
     sys.exit(app.exec_())
 
