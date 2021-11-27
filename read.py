@@ -1,10 +1,18 @@
 import re
+import fitz
 
 
 def read(filename):
     if not filename:
         return []
-    with open(filename, 'r', encoding='utf-8') as f:
-        lines = [re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', line) for line in f]
-    words = [word for line in lines for word in line.split()]
-    return words
+
+    if filename.split('.')[-1] == 'pdf':
+        with fitz.open(filename) as doc:
+            text = ""
+            for page in doc:
+                text += page.get_text()
+    else:
+        with open(filename, 'r', encoding='utf-8') as f:
+            text = f.read()
+    text = re.sub('[^\w!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~]+', ' ', text)
+    return text.split()
