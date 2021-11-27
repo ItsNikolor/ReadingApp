@@ -19,6 +19,7 @@ def save(main_ui: MainUI):
     settings.setValue('window position', main_ui.pos())
     settings.setValue('last directory', main_ui.last_directory)
     settings.setValue('last filename', main_ui.filename)
+    settings.setValue('recent files', main_ui.recent_files)
 
     settings = QSettings('ReadingAppQt', f'{main_ui.filename}_{main_ui.version}')
     settings.setValue('saved', True)
@@ -41,6 +42,7 @@ def load(main_ui: MainUI):
         return
     main_ui.last_directory = settings.value('last directory')
     main_ui.filename = settings.value('last filename')
+    main_ui.recent_files = settings.value('recent files')
 
     main_ui.resize(settings.value('window size'))
     main_ui.move(settings.value('window position'))
@@ -70,7 +72,8 @@ def load_scroll_frame(main_ui: MainUI):
 
     scroll_frame.frames[scroll_frame.current_line].setStyleSheet('')
     scroll_frame.current_line = settings.value('current line')
-    scroll_frame.frames[scroll_frame.current_line].setStyleSheet(scroll_frame.highlight_line_style)
+    if words:
+        scroll_frame.frames[scroll_frame.current_line].setStyleSheet(scroll_frame.highlight_line_style)
     for frame in scroll_frame.frames:
         frame.width = settings.value('width')
     scroll_frame.jump(settings.value('position'), settings.value('highlight'))

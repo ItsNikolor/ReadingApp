@@ -1,3 +1,4 @@
+import functools
 import os
 import sys
 
@@ -384,10 +385,12 @@ class MainFrame(QFrame):
 
 class MainUI(QMainWindow):
     version = 0
+    MAX_RECENT = 5
 
     def __init__(self, screen_width, screen_height, titlebar_height):
         super().__init__()
 
+        self.recent_files = []
         self.filename = ''
         self.last_directory = 'c:\\'
         # self.last_directory = 'C:/Users/o.verbin/PycharmProjects/ReadingApp'
@@ -436,23 +439,44 @@ class MainUI(QMainWindow):
 
     def _createMenuBar(self):
         menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu("&Open")
+        self.file_menu = menu_bar.addMenu("&Open")
 
-        open_action = QAction("&Open...", self)
-        open_action.triggered.connect(self._open)
-        file_menu.addAction(open_action)
-        file_menu.addSeparator()
+        self.open_action = QAction("&Open...", self)
+        self.open_action.triggered.connect(self._open)
+        self.file_menu.aboutToShow.connect(self.populateRecent)
+        # self.file_menu.addAction(open_action)
+        # self.file_menu.addSeparator()
+
+    def populateRecent(self):
+        self.file_menu.clear()
+        self.file_menu.addAction(self.open_action)
+        self.file_menu.addSeparator()
+
+        actions = []
+        for filename in self.recent_files:
+            action = QAction(filename, self)
+            action.triggered.connect(functools.partial(self.open, filename))
+            actions.append(action)
+        self.file_menu.addActions(actions)
 
     def _open(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file',
                                             self.last_directory, "Text files (*.pdf *.txt)")
-        if fname[0]:
-            self.last_directory = os.path.dirname(fname[0])
-            print(self.last_directory)
+        self.open(fname[0])
+
+    def open(self, filename):
+        if filename:
+            self.last_directory = os.path.dirname(filename)
             try:
-                words = read.read(fname[0])
+                words = read.read(filename)
+                if filename in self.recent_files:
+                    self.recent_files.remove(filename)
+                elif len(self.recent_files) == self.MAX_RECENT:
+                    self.recent_files.pop()
+                self.recent_files.insert(0, filename)
+
                 save.save(self)
-                self.filename = fname[0]
+                self.filename = filename
                 self.populate(words)
                 save.load_scroll_frame(self)
             except:
@@ -514,7 +538,7 @@ def initialize():
     titlebar_height = 40
 
     # save.delete_save(0)
-    # save.delete_save(filename, 0)
+    # save.delete_save('text.txt', 0)
     ex = MainUI(screen_width, screen_height, titlebar_height)
 
     save.load(ex)
